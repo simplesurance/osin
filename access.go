@@ -13,6 +13,7 @@ import (
 type AccessRequestType string
 
 const (
+	CERTIFICATE_PIN    AccessRequestType = "certificate_pin"
 	AUTHORIZATION_CODE AccessRequestType = "authorization_code"
 	REFRESH_TOKEN      AccessRequestType = "refresh_token"
 	PASSWORD           AccessRequestType = "password"
@@ -137,6 +138,8 @@ func (s *Server) HandleAccessRequest(w *Response, r *http.Request) *AccessReques
 		switch grantType {
 		case AUTHORIZATION_CODE:
 			return s.handleAuthorizationCodeRequest(w, r)
+		case CERTIFICATE_PIN:
+			return s.handleCertificatePinRequest(w, r)
 		case REFRESH_TOKEN:
 			return s.handleRefreshTokenRequest(w, r)
 		case PASSWORD:
@@ -284,6 +287,41 @@ func extraScopes(access_scopes, refresh_scopes string) bool {
 		}
 	}
 	return false
+}
+
+func (s *Server) handleCertificatePinRequest(w *Response, r *http.Request) *AccessRequest {
+	// get client authentication
+	auth := getClientAuth(w, r, s.Config.AllowClientSecretInParams)
+	if auth == nil {
+		return nil
+	}
+
+	// generate access token
+	ret := &AccessRequest{
+		Type:            PASSWORD,
+		Username:        r.Form.Get("certificate_id"),
+		Password:        r.Form.Get("certificate_pin"),
+		Scope:           r.Form.Get("scope"),
+		GenerateRefresh: true,
+		Expiration:      s.Config.AccessExpiration,
+		HttpRequest:     r,
+	}
+
+	// "username" and "password" is required
+	if ret.Username == "" || ret.Password == "" {
+		w.SetError(E_INVALID_GRANT, "")
+		return nil
+	}
+
+	// must have a valid client
+	if ret.Client = getClient(auth, w.Storage, w); ret.Client == nil {
+		return nil
+	}
+
+	// set redirect uri
+	ret.RedirectUri = FirstUri(ret.Client.GetRedirectUri(), s.Config.RedirectUriSeparator)
+
+	return ret
 }
 
 func (s *Server) handleRefreshTokenRequest(w *Response, r *http.Request) *AccessRequest {
