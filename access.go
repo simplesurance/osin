@@ -298,7 +298,7 @@ func (s *Server) handleCertificatePinRequest(w *Response, r *http.Request) *Acce
 
 	// generate access token
 	ret := &AccessRequest{
-		Type:            PASSWORD,
+		Type:            CERTIFICATE_PIN,
 		Username:        r.Form.Get("certificate_id"),
 		Password:        r.Form.Get("certificate_pin"),
 		Scope:           r.Form.Get("scope"),
